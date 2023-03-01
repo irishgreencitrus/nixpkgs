@@ -99,7 +99,7 @@ def _perform_ocr_on_screenshot(
         + "-blur 1x65535"
     )
 
-    tess_args = f"-c debug_file=/dev/null --psm 11"
+    tess_args = "-c debug_file=/dev/null --psm 11"
 
     cmd = f"convert {magick_args} '{screenshot_path}' 'tiff:{screenshot_path}.tiff'"
     ret = subprocess.run(cmd, shell=True, capture_output=True)
@@ -151,9 +151,7 @@ class StartCommand:
         if not display_available:
             display_opts += " -nographic"
 
-        # qemu options
-        qemu_opts = ""
-        qemu_opts += (
+        qemu_opts = "" + (
             ""
             if allow_reboot
             else " -no-reboot"
@@ -178,16 +176,11 @@ class StartCommand:
         state_dir: Path,
         shared_dir: Path,
     ) -> dict:
-        # We make a copy to not update the current environment
-        env = dict(os.environ)
-        env.update(
-            {
-                "TMPDIR": str(state_dir),
-                "SHARED_DIR": str(shared_dir),
-                "USE_TMPDIR": "1",
-            }
-        )
-        return env
+        return dict(os.environ) | {
+            "TMPDIR": str(state_dir),
+            "SHARED_DIR": str(shared_dir),
+            "USE_TMPDIR": "1",
+        }
 
     def run(
         self,
@@ -220,11 +213,11 @@ class NixStartScript(StartCommand):
 
     @property
     def machine_name(self) -> str:
-        match = re.search("run-(.+)-vm$", self._cmd)
-        name = "machine"
-        if match:
-            name = match.group(1)
-        return name
+        return (
+            match[1]
+            if (match := re.search("run-(.+)-vm$", self._cmd))
+            else "machine"
+        )
 
 
 class LegacyStartCommand(StartCommand):
@@ -244,20 +237,16 @@ class LegacyStartCommand(StartCommand):
         qemuBinary: Optional[str] = None,
         qemuFlags: Optional[str] = None,
     ):
-        if qemuBinary is not None:
-            self._cmd = qemuBinary
-        else:
-            self._cmd = "qemu-kvm"
-
+        self._cmd = qemuBinary if qemuBinary is not None else "qemu-kvm"
         self._cmd += " -m 384"
 
         # networking
         net_backend = "-netdev user,id=net0"
         net_frontend = "-device virtio-net-pci,netdev=net0"
         if netBackendArgs is not None:
-            net_backend += "," + netBackendArgs
+            net_backend += f",{netBackendArgs}"
         if netFrontendArgs is not None:
-            net_frontend += "," + netFrontendArgs
+            net_frontend += f",{netFrontendArgs}"
         self._cmd += f" {net_backend} {net_frontend}"
 
         # hda
@@ -401,8 +390,7 @@ class Machine:
         rootlog.log_serial(msg, self.name)
 
     def nested(self, msg: str, attrs: Dict[str, str] = {}) -> _GeneratorContextManager:
-        my_attrs = {"machine": self.name}
-        my_attrs.update(attrs)
+        my_attrs = {"machine": self.name} | attrs
         return rootlog.nested(msg, my_attrs)
 
     def wait_for_monitor_prompt(self) -> str:
@@ -524,10 +512,7 @@ class Machine:
         # Always run command with shell opts
         command = f"set -euo pipefail; {command}"
 
-        timeout_str = ""
-        if timeout is not None:
-            timeout_str = f"timeout {timeout}"
-
+        timeout_str = f"timeout {timeout}" if timeout is not None else ""
         out_command = (
             f"{timeout_str} sh -c {shlex.quote(command)} | (base64 --wrap 0; echo)\n"
         )

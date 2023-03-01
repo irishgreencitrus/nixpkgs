@@ -33,8 +33,9 @@ class ManualDocBookRenderer(DocBookRenderer):
 
     def render(self, tokens: Sequence[Token], options: OptionsDict,
                env: MutableMapping[str, Any]) -> str:
-        wanted = { 'h1': 'title' }
-        wanted |= { 'h2': 'subtitle' } if self._toplevel_tag == 'book' else {}
+        wanted = {'h1': 'title'} | (
+            {'h2': 'subtitle'} if self._toplevel_tag == 'book' else {}
+        )
         for (i, (tag, kind)) in enumerate(wanted.items()):
             if len(tokens) < 3 * (i + 1):
                 raise RuntimeError(f"missing {kind} ({tag}) heading")
@@ -59,7 +60,7 @@ class ManualDocBookRenderer(DocBookRenderer):
             assert tokens[1].children
             assert tokens[4].children
             if (maybe_id := cast(str, tokens[0].attrs.get('id', ""))):
-                maybe_id = "xml:id=" + quoteattr(maybe_id)
+                maybe_id = f"xml:id={quoteattr(maybe_id)}"
             return (f'<book xmlns="http://docbook.org/ns/docbook"'
                     f'      xmlns:xlink="http://www.w3.org/1999/xlink"'
                     f'      {maybe_id} version="5.0">'
@@ -148,7 +149,7 @@ class DocBookConverter(Converter):
                 token.type = 'included_options'
                 self._parse_options(token)
             elif typ in [ 'sections', 'chapters', 'preface', 'parts', 'appendix' ]:
-                token.type = 'included_' + typ
+                token.type = f'included_{typ}'
                 self._parse_included_blocks(token, env)
             else:
                 raise RuntimeError(f"unsupported structural include type '{typ}'")
