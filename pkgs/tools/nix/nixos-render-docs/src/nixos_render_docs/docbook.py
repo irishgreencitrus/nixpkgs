@@ -59,7 +59,10 @@ class DocBookRenderer(Renderer):
                 continue
             token.tag = 'link'
             # turn [](#foo) into xrefs
-            if token.attrs['href'][0:1] == '#' and tokens[i + 1].type == 'link_close': # type: ignore[index]
+            if (
+                token.attrs['href'][:1] == '#'
+                and tokens[i + 1].type == 'link_close'
+            ): # type: ignore[index]
                 token.tag = "xref"
             # turn <x> into links without contents
             if tokens[i + 1].type == 'text' and tokens[i + 1].content == token.attrs['href']:
@@ -224,11 +227,10 @@ class DocBookRenderer(Renderer):
         if s := token.attrs.get('id'):
             id_part = f'<anchor xml:id={quoteattr(cast(str, s))} />'
         if s := token.attrs.get('class'):
-            if s == 'keycap':
-                class_part = "<keycap>"
-                self._attrspans.append("</keycap>")
-            else:
+            if s != 'keycap':
                 return super().attr_span_begin(token, tokens, i, options, env)
+            class_part = "<keycap>"
+            self._attrspans.append("</keycap>")
         else:
             self._attrspans.append("")
         return id_part + class_part
@@ -242,7 +244,7 @@ class DocBookRenderer(Renderer):
         return f"<orderedlist{start}{spacing}>"
     def ordered_list_close(self, token: Token, tokens: Sequence[Token], i: int, options: OptionsDict,
                            env: MutableMapping[str, Any]) -> str:
-        return f"</orderedlist>"
+        return "</orderedlist>"
     def heading_open(self, token: Token, tokens: Sequence[Token], i: int, options: OptionsDict,
                      env: MutableMapping[str, Any]) -> str:
         hlevel = int(token.tag[1:])
@@ -250,7 +252,7 @@ class DocBookRenderer(Renderer):
         (tag, attrs) = self._heading_tag(token, tokens, i, options, env)
         self._headings.append(Heading(tag, hlevel))
         attrs_str = "".join([ f" {k}={quoteattr(v)}" for k, v in attrs.items() ])
-        return result + f'<{tag}{attrs_str}>\n<title>'
+        return f'{result}<{tag}{attrs_str}>\n<title>'
     def heading_close(self, token: Token, tokens: Sequence[Token], i: int, options: OptionsDict,
                       env: MutableMapping[str, Any]) -> str:
         heading = self._headings[-1]
@@ -261,7 +263,7 @@ class DocBookRenderer(Renderer):
             maybe_id = ""
             assert tokens[i - 2].type == 'heading_open'
             if id := cast(str, tokens[i - 2].attrs.get('id', "")):
-                maybe_id = " xml:id=" + quoteattr(id + "-intro")
+                maybe_id = f' xml:id={quoteattr(f"{id}-intro")}'
             result += f"<partintro{maybe_id}>"
         return result
     def example_open(self, token: Token, tokens: Sequence[Token], i: int, options: OptionsDict,
@@ -276,14 +278,13 @@ class DocBookRenderer(Renderer):
     def _close_headings(self, level: Optional[int], env: MutableMapping[str, Any]) -> str:
         # we rely on markdown-it producing h{1..6} tags in token.tag for this to work
         result = []
-        while len(self._headings):
-            if level is None or self._headings[-1].level >= level:
-                heading = self._headings.pop()
-                if heading.container_tag == 'part' and not heading.partintro_closed:
-                    result.append("</partintro>")
-                result.append(f"</{heading.container_tag}>")
-            else:
-                break
+        while len(self._headings) and (
+            level is None or self._headings[-1].level >= level
+        ):
+            heading = self._headings.pop()
+            if heading.container_tag == 'part' and not heading.partintro_closed:
+                result.append("</partintro>")
+            result.append(f"</{heading.container_tag}>")
         return "\n".join(result)
 
     def _heading_tag(self, token: Token, tokens: Sequence[Token], i: int, options: OptionsDict,

@@ -92,7 +92,11 @@ class CommonMarkRenderer(Renderer):
     def list_item_open(self, token: Token, tokens: Sequence[Token], i: int, options: OptionsDict,
                        env: MutableMapping[str, Any]) -> str:
         lst = self._list_stack[-1]
-        lbreak = "" if not lst.first_item_seen else self._break() * (1 if lst.compact else 2)
+        lbreak = (
+            self._break() * (1 if lst.compact else 2)
+            if lst.first_item_seen
+            else ""
+        )
         lst.first_item_seen = True
         head = " -"
         if lst.next_idx is not None:
@@ -135,7 +139,7 @@ class CommonMarkRenderer(Renderer):
                         env: MutableMapping[str, Any]) -> str:
         pbreak = self._maybe_parbreak()
         self._enter_block("> ")
-        return pbreak + "> "
+        return f"{pbreak}> "
     def blockquote_close(self, token: Token, tokens: Sequence[Token], i: int, options: OptionsDict,
                          env: MutableMapping[str, Any]) -> str:
         self._leave_block()
@@ -215,7 +219,7 @@ class CommonMarkRenderer(Renderer):
         return ""
     def heading_open(self, token: Token, tokens: Sequence[Token], i: int, options: OptionsDict,
                      env: MutableMapping[str, Any]) -> str:
-        return token.markup + " "
+        return f"{token.markup} "
     def heading_close(self, token: Token, tokens: Sequence[Token], i: int, options: OptionsDict,
                       env: MutableMapping[str, Any]) -> str:
         return "\n"
